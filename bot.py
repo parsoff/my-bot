@@ -27,8 +27,8 @@ TOKEN = "8681136841:AAHTqbHehB5DwCrRQ17CwRa-YqAIxYL5OUo"
 
 ADMIN_ID = 8422742448
 
-CARD_NUMBER = "6219861936116119"
-CARD_NAME = "رحیم آخوندی زاده لطف آباد"
+CARD_NUMBER = "6219861991961367"
+CARD_NAME = "زینت ترکی انار"
 
 SUPPORT_ID = "@Sso_R_rY"
 
@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS orders (
     order_type TEXT,
     users_count INTEGER,
     months INTEGER,
+    operator TEXT,
     qty INTEGER DEFAULT 1,
     price INTEGER,
     status TEXT,
@@ -91,6 +92,11 @@ except:
 
 try:
     cursor.execute("ALTER TABLE orders ADD COLUMN months INTEGER")
+except:
+    pass
+
+try:
+    cursor.execute("ALTER TABLE orders ADD COLUMN operator TEXT")
 except:
     pass
 
@@ -153,8 +159,6 @@ def calculate_price(service_type, is_agent_user, users_count, months):
             if months == 1: return 360000
             elif months == 2: return 580000
             elif months == 3: return 810000
-            # محاسبه دلخواه برای 1 کاربر عادی
-            # قیمت پایه: 360,000 برای 1 ماه
             else:
                 base_per_month = 360000
                 return base_per_month * months
@@ -162,15 +166,10 @@ def calculate_price(service_type, is_agent_user, users_count, months):
             if months == 1: return 590000
             elif months == 2: return 1100000
             elif months == 3: return 1500000
-            # محاسبه دلخواه برای 2 کاربر عادی
-            # قیمت پایه: 590,000 برای 1 ماه
             else:
                 base_per_month = 590000
                 return base_per_month * months
         else:
-            # برای تعداد کاربر دلخواه (بیش از 2)
-            # قیمت برای کاربر اول: 360,000 برای 1 ماه
-            # قیمت برای هر کاربر اضافی: 230,000 برای 1 ماه (590,000 - 360,000 = 230,000)
             price_first_user = 360000
             price_additional_user = 230000
             base_per_month = price_first_user + (price_additional_user * (users_count - 1))
@@ -181,21 +180,16 @@ def calculate_price(service_type, is_agent_user, users_count, months):
         if users_count == 1:
             if months == 1: return 460000
             elif months == 2: return 790000
-            # محاسبه دلخواه برای 1 کاربر VIP
             else:
                 base_per_month = 460000
                 return base_per_month * months
         elif users_count == 2:
             if months == 1: return 790000
             elif months == 2: return 1410000
-            # محاسبه دلخواه برای 2 کاربر VIP
             else:
                 base_per_month = 790000
                 return base_per_month * months
         else:
-            # برای تعداد کاربر دلخواه (بیش از 2)
-            # قیمت برای کاربر اول: 460,000 برای 1 ماه
-            # قیمت برای هر کاربر اضافی: 330,000 برای 1 ماه (790,000 - 460,000 = 330,000)
             price_first_user = 460000
             price_additional_user = 330000
             base_per_month = price_first_user + (price_additional_user * (users_count - 1))
@@ -206,21 +200,16 @@ def calculate_price(service_type, is_agent_user, users_count, months):
         if users_count == 1:
             if months == 1: return 285000
             elif months == 2: return 515000
-            # محاسبه دلخواه برای 1 کاربر عادی (نمایندگی)
             else:
                 base_per_month = 285000
                 return base_per_month * months
         elif users_count == 2:
             if months == 1: return 515000
             elif months == 2: return 935000
-            # محاسبه دلخواه برای 2 کاربر عادی (نمایندگی)
             else:
                 base_per_month = 515000
                 return base_per_month * months
         else:
-            # برای تعداد کاربر دلخواه (بیش از 2)
-            # قیمت برای کاربر اول: 285,000 برای 1 ماه
-            # قیمت برای هر کاربر اضافی: 230,000 برای 1 ماه (515,000 - 285,000 = 230,000)
             price_first_user = 285000
             price_additional_user = 230000
             base_per_month = price_first_user + (price_additional_user * (users_count - 1))
@@ -231,21 +220,16 @@ def calculate_price(service_type, is_agent_user, users_count, months):
         if users_count == 1:
             if months == 1: return 385000
             elif months == 2: return 715000
-            # محاسبه دلخواه برای 1 کاربر VIP (نمایندگی)
             else:
                 base_per_month = 385000
                 return base_per_month * months
         elif users_count == 2:
             if months == 1: return 715000
             elif months == 2: return 1335000
-            # محاسبه دلخواه برای 2 کاربر VIP (نمایندگی)
             else:
                 base_per_month = 715000
                 return base_per_month * months
         else:
-            # برای تعداد کاربر دلخواه (بیش از 2)
-            # قیمت برای کاربر اول: 385,000 برای 1 ماه
-            # قیمت برای هر کاربر اضافی: 330,000 برای 1 ماه (715,000 - 385,000 = 330,000)
             price_first_user = 385000
             price_additional_user = 330000
             base_per_month = price_first_user + (price_additional_user * (users_count - 1))
@@ -414,10 +398,18 @@ def get_months_menu():
         [InlineKeyboardButton("❌ انصراف", callback_data="cancel_buy")]
     ])
 
+def get_operator_menu():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("☎️ همراه اول", callback_data="buy_operator_mci")],
+        [InlineKeyboardButton("📱 ایرانسل", callback_data="buy_operator_mtn")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_months")],
+        [InlineKeyboardButton("❌ انصراف", callback_data="cancel_buy")]
+    ])
+
 def get_invoice_menu():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ تایید و ادامه", callback_data="buy_confirm")],
-        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_months")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_operator")],
         [InlineKeyboardButton("❌ انصراف از خرید", callback_data="cancel_buy")]
     ])
 
@@ -447,7 +439,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start_buy_flow(update: Update, context: ContextTypes.DEFAULT_TYPE, from_query=False):
     uid = update.effective_user.id
-    user_data[uid] = {"type": "buy", "service": None, "users_count": 0, "months": 0, "discount": "ندارد", "price": 0}
+    user_data[uid] = {"type": "buy", "service": None, "users_count": 0, "months": 0, "operator": None, "discount": "ندارد", "price": 0}
     text = "🛍 بخش خرید\n\nلطفاً نوع سرویس مورد نظر خود را انتخاب کنید:"
     
     if from_query:
@@ -554,7 +546,6 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 6. مدت اشتراک
     if data == "back_to_months":
-        # بازگشت به مرحله انتخاب تعداد کاربر
         await query.edit_message_text("👤 تعداد کاربر رو انتخاب کنید:", reply_markup=get_users_count_menu())
         return
 
@@ -566,10 +557,31 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("buy_months_"):
         months = int(data.split("_")[2])
         user_data[uid]["months"] = months
+        
+        # اگر تانل عادی بود، به مرحله انتخاب اپراتور برویم
+        if user_data[uid].get("service") == "normal":
+            await query.edit_message_text("📱 اپراتور را انتخاب کنید:", reply_markup=get_operator_menu())
+        else:
+            # برای VIP و نمایندگی، مستقیم به فاکتور برویم
+            await generate_and_send_invoice(query, uid)
+        return
+
+    # 7. انتخاب اپراتور (فقط برای تانل عادی)
+    if data == "back_to_operator":
+        await query.edit_message_text("📱 اپراتور را انتخاب کنید:", reply_markup=get_operator_menu())
+        return
+
+    if data == "buy_operator_mci":
+        user_data[uid]["operator"] = "☎️ همراه اول"
         await generate_and_send_invoice(query, uid)
         return
 
-    # 7. فاکتور و تایید
+    if data == "buy_operator_mtn":
+        user_data[uid]["operator"] = "📱 ایرانسل"
+        await generate_and_send_invoice(query, uid)
+        return
+
+    # 8. فاکتور و تایید
     if data == "buy_confirm":
         user_state[uid] = "WAIT_BUY_RECEIPT"
         
@@ -610,7 +622,6 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith("renew_"):
         months = int(data.split("_")[1])
-        # برای تمدید از قیمت تک کاربر استفاده می‌کنیم (پیش‌فرض)
         pr = calculate_price("normal", is_agent(uid), 1, months)
         if uid not in user_data: user_data[uid] = {}
         user_data[uid]["type"] = "renew"
@@ -658,6 +669,7 @@ async def generate_and_send_invoice(query_or_msg, uid):
     users_count = data.get("users_count", 1)
     months = data.get("months", 1)
     service = data.get("service", "normal")
+    operator = data.get("operator", "")
     is_agent_user = is_agent(uid)
     
     # محاسبه قیمت
@@ -676,13 +688,14 @@ async def generate_and_send_invoice(query_or_msg, uid):
     service_name = service_map.get(service, "نامشخص")
     
     vip_badge = "\n🌟 جوابگویی روی تمامی نت ها" if service == "vip" else ""
+    operator_line = f"\n📱 اپراتور: {operator}" if operator else ""
     
     text = f"""
 🧾 پیش فاکتور شما:
 
 🔸 نوع سرویس: {service_name}{vip_badge}
 🔸 تعداد کاربر: {users_count}
-🔸 مدت اشتراک: {months} ماه
+🔸 مدت اشتراک: {months} ماه{operator_line}
 🔸 روش پرداخت: نقدی (کارت به کارت)
 🔸 کد تخفیف: {data.get("discount", "ندارد")}
     
@@ -784,7 +797,13 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if months < 1: return await update.message.reply_text("❌ تعداد ماه باید حداقل 1 باشد")
         
         user_data[uid]["months"] = months
-        await generate_and_send_invoice(update.message, uid)
+        
+        # اگر تانل عادی بود، به مرحله انتخاب اپراتور برویم
+        if user_data[uid].get("service") == "normal":
+            await update.message.reply_text(f"📱 اپراتور را انتخاب کنید:", reply_markup=get_operator_menu())
+        else:
+            # برای VIP و نمایندگی، مستقیم به فاکتور برویم
+            await generate_and_send_invoice(update.message, uid)
         return
 
     # دریافت لینک برای تمدید
@@ -834,17 +853,19 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     order_code = generate_order_code()
     users_count = data.get("users_count", 1)
     months = data.get("months", 1)
+    operator = data.get("operator", "")
 
     cursor.execute("""
-    INSERT INTO orders (order_code, user_id, order_type, users_count, months, qty, price, status, link, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (order_code, uid, data["type"], users_count, months, 1, data["price"], "pending", data.get("link", "-"), datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    INSERT INTO orders (order_code, user_id, order_type, users_count, months, operator, qty, price, status, link, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (order_code, uid, data["type"], users_count, months, operator, 1, data["price"], "pending", data.get("link", "-"), datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     db.commit()
 
     agent_tag = " 💎 (نماینده)" if is_agent(uid) else ""
 
     if data["type"] == "buy":
-        caption = f"🛒 خرید جدید{agent_tag}\n\n🧾 سفارش: {order_code}\n👤 کاربر: {uid}\n👥 تعداد کاربر: {users_count}\n⏱ مدت: {months} ماه\n💰 مبلغ: {format_price(data['price'])}"
+        operator_info = f"\n📱 اپراتور: {operator}" if operator else ""
+        caption = f"🛒 خرید جدید{agent_tag}\n\n🧾 سفارش: {order_code}\n👤 کاربر: {uid}\n👥 تعداد کاربر: {users_count}\n⏱ مدت: {months} ماه{operator_info}\n💰 مبلغ: {format_price(data['price'])}"
     else:
         caption = f"♻️ تمدید جدید\n\n🧾 سفارش: {order_code}\n👤 کاربر: {uid}\n🔗 لینک:\n`{data['link']}`\n⏱ مدت: {months} ماه\n💰 مبلغ: {format_price(data['price'])}"
 
