@@ -147,10 +147,6 @@ def calculate_price(service_type, is_agent_user, users_count, months):
     - 2 کاربر: 715,000 (1ماه), 1,335,000 (2ماه)
     """
     
-    # برای نمایندگان - فقط 1 و 2 ماهه
-    if is_agent_user and months > 2:
-        return 0
-    
     # تانل عادی (بدون نمایندگی)
     if service_type == "normal" and not is_agent_user:
         if users_count == 1:
@@ -418,15 +414,6 @@ def get_months_menu():
         [InlineKeyboardButton("❌ انصراف", callback_data="cancel_buy")]
     ])
 
-def get_agent_months_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("1️⃣ یک ماهه", callback_data="buy_months_1")],
-        [InlineKeyboardButton("2️⃣ دو ماهه", callback_data="buy_months_2")],
-        [InlineKeyboardButton("📦 ماه دلخواه", callback_data="buy_custom_months")],
-        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_users")],
-        [InlineKeyboardButton("❌ انصراف", callback_data="cancel_buy")]
-    ])
-
 def get_invoice_menu():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ تایید و ادامه", callback_data="buy_confirm")],
@@ -562,14 +549,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("buy_users_"):
         users_count = int(data.split("_")[2])
         user_data[uid]["users_count"] = users_count
-        
-        # برای نمایندگان فقط 1 و 2 ماهه
-        if user_data[uid].get("service") == "agent":
-            menu = get_agent_months_menu()
-        else:
-            menu = get_months_menu()
-        
-        await query.edit_message_text(f"⏱ مدت اشتراک رو انتخاب کنید:", reply_markup=menu)
+        await query.edit_message_text(f"⏱ مدت اشتراک رو انتخاب کنید:", reply_markup=get_months_menu())
         return
 
     # 6. مدت اشتراک
@@ -580,11 +560,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "buy_custom_months":
         user_state[uid] = "WAIT_CUSTOM_MONTHS"
-        service = user_data[uid].get("service", "normal")
-        if service == "agent":
-            await query.edit_message_text("📦 تعداد ماه دلخواه رو بفرستید:\n\nمثال: 3\n\n⚠️ نمایندگان فقط می‌تونن 1 یا 2 ماهه خریداری کنند")
-        else:
-            await query.edit_message_text("📦 تعداد ماه دلخواه رو بفرستید:\n\nمثال: 3")
+        await query.edit_message_text("📦 تعداد ماه دلخواه رو بفرستید:\n\nمثال: 3")
         return
 
     if data.startswith("buy_months_"):
@@ -798,14 +774,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if users_count < 1: return await update.message.reply_text("❌ تعداد کاربر باید حداقل 1 باشد")
         
         user_data[uid]["users_count"] = users_count
-        
-        # برای نمایندگان فقط 1 و 2 ماهه
-        if user_data[uid].get("service") == "agent":
-            menu = get_agent_months_menu()
-        else:
-            menu = get_months_menu()
-        
-        await update.message.reply_text(f"⏱ مدت اشتراک رو انتخاب کنید:", reply_markup=menu)
+        await update.message.reply_text(f"⏱ مدت اشتراک رو انتخاب کنید:", reply_markup=get_months_menu())
         return
 
     # دریافت دستی تعداد ماه
@@ -813,10 +782,6 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not text.isdigit(): return await update.message.reply_text("❌ فقط عدد انگلیسی ارسال کن")
         months = int(text)
         if months < 1: return await update.message.reply_text("❌ تعداد ماه باید حداقل 1 باشد")
-        
-        # برای نمایندگان فقط 1 و 2 ماهه قبول کنیم
-        if user_data[uid].get("service") == "agent" and months > 2:
-            return await update.message.reply_text("❌ نمایندگان فقط می‌تونن 1 یا 2 ماهه خریداری کنند")
         
         user_data[uid]["months"] = months
         await generate_and_send_invoice(update.message, uid)
