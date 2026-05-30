@@ -64,7 +64,8 @@ CREATE TABLE IF NOT EXISTS orders (
     order_code TEXT,
     user_id INTEGER,
     order_type TEXT,
-    gb INTEGER,
+    users_count INTEGER,
+    months INTEGER,
     qty INTEGER DEFAULT 1,
     price INTEGER,
     status TEXT,
@@ -80,6 +81,16 @@ except:
 
 try:
     cursor.execute("ALTER TABLE orders ADD COLUMN qty INTEGER DEFAULT 1")
+except:
+    pass
+
+try:
+    cursor.execute("ALTER TABLE orders ADD COLUMN users_count INTEGER")
+except:
+    pass
+
+try:
+    cursor.execute("ALTER TABLE orders ADD COLUMN months INTEGER")
 except:
     pass
 
@@ -108,6 +119,46 @@ def is_agent(uid):
     return True if result and result[0] == 1 else False
 
 # =====================================
+# قیمت گذاری جدید (نامحدود)
+# =====================================
+
+# تانل عادی
+NORMAL_PRICES = {
+    (1, 1): 360000,  # 1 کاربر، 1 ماه
+    (1, 2): 580000,  # 1 کاربر، 2 ماه
+    (1, 3): 810000,  # 1 کاربر، 3 ماه
+    (2, 1): 590000,  # 2 کاربر، 1 ماه
+    (2, 2): 1100000, # 2 کاربر، 2 ماه
+    (2, 3): 1500000, # 2 کاربر، 3 ماه
+}
+
+# تانل VIP
+VIP_PRICES = {
+    (1, 1): 460000,  # 1 کاربر، 1 ماه
+    (1, 2): 790000,  # 1 کاربر، 2 ماه
+    (2, 1): 790000,  # 2 کاربر، 1 ماه
+    (2, 2): 1410000, # 2 کاربر، 2 ماه
+}
+
+# نمایندگی - تانل عادی
+AGENT_NORMAL_PRICES = {
+    (1, 1): 285000,  # 1 کاربر، 1 ماه
+    (1, 2): 515000,  # 1 کاربر، 2 ماه
+    (1, 3): 735000,  # 1 کاربر، 3 ماه
+    (2, 1): 515000,  # 2 کاربر، 1 ماه
+    (2, 2): 935000,  # 2 کاربر، 2 ماه
+    (2, 3): 1425000, # 2 کاربر، 3 ماه
+}
+
+# نمایندگی - تانل VIP
+AGENT_VIP_PRICES = {
+    (1, 1): 385000,  # 1 کاربر، 1 ماه
+    (1, 2): 715000,  # 1 کاربر، 2 ماه
+    (2, 1): 715000,  # 2 کاربر، 1 ماه
+    (2, 2): 1335000, # 2 کاربر، 2 ماه
+}
+
+# =====================================
 # حافظه موقت
 # =====================================
 
@@ -116,7 +167,6 @@ user_data = {}
 admin_state = {}
 
 # سیستم ارسال چند مرحله ای برای ادمین
-# فرمت: {order_code: {"uid": user_id, "qty": qty, "gb": gb, "links": []}}
 admin_multi_delivery = {} 
 
 # =====================================
@@ -142,7 +192,7 @@ admin_keyboard = ReplyKeyboardMarkup(
 )
 
 # =====================================
-# فرمت مبلغ و قیمت گذاری
+# فرمت مبلغ
 # =====================================
 
 def format_price(amount):
@@ -163,17 +213,26 @@ def format_price(amount):
 
     return f"{amount} تومان"
 
-def price(gb):
-    gb = int(gb)
-    base = {1: 150000, 2: 300000, 3: 410000, 4: 550000, 5: 680000}
-    if gb in base: return base[gb]
-    return int(gb * 150000 * 0.9)
-
-def agent_price(gb):
-    gb = int(gb)
-    base = {1: 100000, 2: 190000, 3: 270000, 4: 340000, 5: 400000}
-    if gb in base: return base[gb]
-    return int(gb * 75000)
+def get_price(service_type, is_agent_user, users_count, months):
+    """
+    محاسبه قیمت بر اساس نوع سرویس، تعداد کاربر و مدت اشتراک
+    service_type: "normal" یا "vip"
+    is_agent_user: True یا False
+    users_count: 1 یا 2
+    months: 1، 2 یا 3
+    """
+    key = (users_count, months)
+    
+    if is_agent_user:
+        if service_type == "normal":
+            return AGENT_NORMAL_PRICES.get(key, 0)
+        else:  # vip
+            return AGENT_VIP_PRICES.get(key, 0)
+    else:
+        if service_type == "normal":
+            return NORMAL_PRICES.get(key, 0)
+        else:  # vip
+            return VIP_PRICES.get(key, 0)
 
 def generate_order_code():
     now = datetime.now().strftime("%Y%m%d")
@@ -262,31 +321,37 @@ def get_discount_menu():
         [InlineKeyboardButton("❌ انصراف از خرید", callback_data="cancel_buy")]
     ])
 
-def get_gb_menu(back_target="back_to_disc"):
+def get_users_count_menu():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("1GB", callback_data="buy_gb_1"), InlineKeyboardButton("2GB", callback_data="buy_gb_2")],
-        [InlineKeyboardButton("3GB", callback_data="buy_gb_3"), InlineKeyboardButton("4GB", callback_data="buy_gb_4")],
-        [InlineKeyboardButton("5GB", callback_data="buy_gb_5")],
-        [InlineKeyboardButton("📦 حجم دلخواه", callback_data="buy_custom_gb")],
-        [InlineKeyboardButton("🔙 بازگشت", callback_data=back_target)],
+        [InlineKeyboardButton("1️⃣ یک کاربر", callback_data="buy_users_1")],
+        [InlineKeyboardButton("2️⃣ دو کاربر", callback_data="buy_users_2")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_disc")],
         [InlineKeyboardButton("❌ انصراف", callback_data="cancel_buy")]
     ])
 
-def get_qty_menu(gb):
+def get_months_menu():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("1 عدد", callback_data="buy_qty_1"), InlineKeyboardButton("2 عدد", callback_data="buy_qty_2")],
-        [InlineKeyboardButton("3 عدد", callback_data="buy_qty_3"), InlineKeyboardButton("4 عدد", callback_data="buy_qty_4")],
-        [InlineKeyboardButton("5 عدد", callback_data="buy_qty_5")],
-        [InlineKeyboardButton("📦 تعداد دلخواه", callback_data="buy_custom_qty")],
-        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_gb_agent")],
+        [InlineKeyboardButton("1️⃣ یک ماهه", callback_data="buy_months_1")],
+        [InlineKeyboardButton("2️⃣ دو ماهه", callback_data="buy_months_2")],
+        [InlineKeyboardButton("3️⃣ سه ماهه", callback_data="buy_months_3")],
+        [InlineKeyboardButton("📦 ماه دلخواه", callback_data="buy_custom_months")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_users")],
         [InlineKeyboardButton("❌ انصراف", callback_data="cancel_buy")]
     ])
 
-def get_invoice_menu(is_agent_flow):
-    back_target = "back_to_qty" if is_agent_flow else "back_to_gb_normal"
+def get_agent_months_menu():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("1️⃣ یک ماهه", callback_data="buy_months_1")],
+        [InlineKeyboardButton("2️⃣ دو ماهه", callback_data="buy_months_2")],
+        [InlineKeyboardButton("📦 ماه دلخواه", callback_data="buy_custom_months")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_users")],
+        [InlineKeyboardButton("❌ انصراف", callback_data="cancel_buy")]
+    ])
+
+def get_invoice_menu():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ تایید و ادامه", callback_data="buy_confirm")],
-        [InlineKeyboardButton("🔙 بازگشت", callback_data=back_target)],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_months")],
         [InlineKeyboardButton("❌ انصراف از خرید", callback_data="cancel_buy")]
     ])
 
@@ -316,7 +381,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start_buy_flow(update: Update, context: ContextTypes.DEFAULT_TYPE, from_query=False):
     uid = update.effective_user.id
-    user_data[uid] = {"type": "buy", "service": None, "gb": 0, "qty": 1, "discount": "ندارد", "price": 0}
+    user_data[uid] = {"type": "buy", "service": None, "users_count": 0, "months": 0, "discount": "ندارد", "price": 0}
     text = "🛍 بخش خرید\n\nلطفاً نوع سرویس مورد نظر خود را انتخاب کنید:"
     
     if from_query:
@@ -346,10 +411,10 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await query.edit_message_text("❌ عملیات لغو شد.")
 
     # =================================
-    # مسیر خرید (قیف فروش)
+    # مسیر خرید
     # =================================
     if uid not in user_data:
-        user_data[uid] = {"type": "buy", "qty": 1, "discount": "ندارد"}
+        user_data[uid] = {"type": "buy", "discount": "ندارد"}
 
     # 1. انتخاب سرویس
     if data == "back_to_srv":
@@ -357,8 +422,9 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "buy_srv_vip":
-        # حل مشکل باز شدن پنجره پاپ آپ با آرگومان text
-        return await query.answer(text="⛔️ فروش این سرویس موقتا بسته است. لطفا سرویس دیگری را انتخاب یا مجددا بعدا تلاش کنید.", show_alert=True)
+        user_data[uid]["service"] = "vip"
+        await query.edit_message_text("👑 سرویس انتخابی: تانل VIP\n🌟 جوابگویی روی تمامی نت ها\n\nنوع پرداخت رو انتخاب کنید:", reply_markup=get_paytype_menu())
+        return
 
     if data == "buy_srv_agent":
         if not is_agent(uid):
@@ -374,7 +440,8 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 2. نوع پرداخت
     if data == "back_to_payt":
-        srv = "نمایندگی فروش 💎" if user_data[uid].get("service") == "agent" else "تانل عادی 🌐"
+        srv_map = {"normal": "تانل عادی 🌐", "vip": "تانل VIP 👑", "agent": "نمایندگی فروش 💎"}
+        srv = srv_map.get(user_data[uid].get("service"), "")
         await query.edit_message_text(f"سرویس انتخابی: {srv}\n\nنوع پرداخت رو انتخاب کنید:", reply_markup=get_paytype_menu())
         return
 
@@ -400,45 +467,45 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "buy_disc_no":
         user_data[uid]["discount"] = "ندارد"
-        await query.edit_message_text("📦 مقدار گیگ (حجم سرویس) رو انتخاب کنید:", reply_markup=get_gb_menu())
+        await query.edit_message_text("👤 تعداد کاربر رو انتخاب کنید:", reply_markup=get_users_count_menu())
         return
 
-    # 5. انتخاب حجم
-    if data in ["back_to_gb_normal", "back_to_gb_agent"]:
-        await query.edit_message_text("📦 مقدار گیگ (حجم سرویس) رو انتخاب کنید:", reply_markup=get_gb_menu())
+    # 5. تعداد کاربر
+    if data == "back_to_users":
+        await query.edit_message_text("👤 تعداد کاربر رو انتخاب کنید:", reply_markup=get_users_count_menu())
         return
 
-    if data == "buy_custom_gb":
-        user_state[uid] = "WAIT_CUSTOM_BUY_GB"
-        await query.edit_message_text("📦 مقدار حجم دلخواه رو به عدد (انگلیسی) ارسال کن:\n\nمثال: 10")
-        return
-
-    if data.startswith("buy_gb_"):
-        gb = int(data.split("_")[2])
-        user_data[uid]["gb"] = gb
+    if data.startswith("buy_users_"):
+        users_count = int(data.split("_")[2])
+        user_data[uid]["users_count"] = users_count
         
-        # اگر تانل عادی بود میره برای فاکتور، اگر نماینده بود میره برای انتخاب تعداد
+        # برای نمایندگان فقط 1 و 2 ماهه
         if user_data[uid].get("service") == "agent":
-            await query.edit_message_text(f"💎 چه تعداد سرویس {gb} گیگ لازم دارین؟", reply_markup=get_qty_menu(gb))
+            menu = get_agent_months_menu()
         else:
-            user_data[uid]["qty"] = 1
-            await generate_and_send_invoice(query, uid)
+            menu = get_months_menu()
+        
+        await query.edit_message_text(f"⏱ مدت اشتراک رو انتخاب کنید:", reply_markup=menu)
         return
 
-    # 6. انتخاب تعداد (فقط نمایندگان)
-    if data == "back_to_qty":
-        gb = user_data[uid].get("gb", 1)
-        await query.edit_message_text(f"💎 چه تعداد سرویس {gb} گیگ لازم دارین؟", reply_markup=get_qty_menu(gb))
+    # 6. مدت اشتراک
+    if data == "back_to_months":
+        users_count = user_data[uid].get("users_count", 1)
+        await query.edit_message_text("👤 تعداد کاربر رو انتخاب کنید:", reply_markup=get_users_count_menu())
         return
 
-    if data == "buy_custom_qty":
-        user_state[uid] = "WAIT_CUSTOM_BUY_QTY"
-        await query.edit_message_text("📦 تعداد سرویس دلخواه رو به عدد (انگلیسی) ارسال کن:\n\nمثال: 10")
+    if data == "buy_custom_months":
+        user_state[uid] = "WAIT_CUSTOM_MONTHS"
+        service = user_data[uid].get("service", "normal")
+        if service == "agent":
+            await query.edit_message_text("📦 تعداد ماه دلخواه رو بفرستید:\n\nمثال: 3\n\n⚠️ نمایندگان فقط می‌تونن 1 یا 2 ماهه خریداری کنند")
+        else:
+            await query.edit_message_text("📦 تعداد ماه دلخواه رو بفرستید:\n\nمثال: 3")
         return
 
-    if data.startswith("buy_qty_"):
-        qty = int(data.split("_")[2])
-        user_data[uid]["qty"] = qty
+    if data.startswith("buy_months_"):
+        months = int(data.split("_")[2])
+        user_data[uid]["months"] = months
         await generate_and_send_invoice(query, uid)
         return
 
@@ -468,31 +535,32 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # =================================
     if data == "back_renew":
         keyboard = [
-            [InlineKeyboardButton("1GB", callback_data="renew_1"), InlineKeyboardButton("2GB", callback_data="renew_2")],
-            [InlineKeyboardButton("3GB", callback_data="renew_3"), InlineKeyboardButton("4GB", callback_data="renew_4")],
-            [InlineKeyboardButton("5GB", callback_data="renew_5")],
-            [InlineKeyboardButton("📦 حجم دلخواه", callback_data="custom_renew")],
+            [InlineKeyboardButton("1️⃣ یک ماهه", callback_data="renew_1"), InlineKeyboardButton("2️⃣ دو ماهه", callback_data="renew_2")],
+            [InlineKeyboardButton("3️⃣ سه ماهه", callback_data="renew_3")],
+            [InlineKeyboardButton("📦 ماه دلخواه", callback_data="custom_renew")],
             [InlineKeyboardButton("❌ لغو سفارش", callback_data="cancel_all")]
         ]
-        await query.edit_message_text("📦 حجم تمدید رو انتخاب کن:", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text("📦 مدت تمدید رو انتخاب کن:", reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
     if data == "custom_renew":
         user_state[uid] = "WAIT_CUSTOM_RENEW"
-        await query.edit_message_text("📦 حجم دلخواه رو به عدد ارسال کن\n\nمثال:\n10")
+        await query.edit_message_text("📦 تعداد ماه دلخواه رو بفرستید\n\nمثال: 3")
         return
 
     if data.startswith("renew_"):
-        gb = int(data.split("_")[1])
-        pr = price(gb)
+        months = int(data.split("_")[1])
+        # برای تمدید از قیمت تک کاربر استفاده می‌کنیم (پیش‌فرض)
+        pr = get_price("normal", is_agent(uid), 1, months)
         if uid not in user_data: user_data[uid] = {}
         user_data[uid]["type"] = "renew"
-        user_data[uid]["gb"] = gb
+        user_data[uid]["months"] = months
+        user_data[uid]["users_count"] = 1
         user_data[uid]["price"] = pr
         user_state[uid] = "WAIT_RENEW_RECEIPT"
         
         keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="back_renew")], [InlineKeyboardButton("❌ لغو سفارش", callback_data="cancel_all")]]
-        text = f"✅ تمدید انتخاب شد\n\n📦 حجم:\n`{gb}GB`\n\n💰 مبلغ:\n`{format_price(pr)}`\n\n💳 شماره کارت:\n`{CARD_NUMBER}`\n👤 صاحب کارت:\n{CARD_NAME}\n\n📸 بعد از پرداخت رسید رو ارسال کن 😄"
+        text = f"✅ تمدید انتخاب شد\n\n⏱ مدت:\n`{months} ماه`\n\n💰 مبلغ:\n`{format_price(pr)}`\n\n💳 شماره کارت:\n`{CARD_NUMBER}`\n👤 صاحب کارت:\n{CARD_NAME}\n\n📸 بعد از پرداخت، رسید رو ارسال کن 😄"
         await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
@@ -527,34 +595,42 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =====================================
 async def generate_and_send_invoice(query_or_msg, uid):
     data = user_data[uid]
-    gb = data["gb"]
-    qty = data.get("qty", 1)
-    is_agent_flow = (data.get("service") == "agent")
+    users_count = data.get("users_count", 1)
+    months = data.get("months", 1)
+    service = data.get("service", "normal")
+    is_agent_user = is_agent(uid)
     
     # محاسبه قیمت
-    unit_price = agent_price(gb) if is_agent_flow else price(gb)
-    total_price = unit_price * qty
+    total_price = get_price(service, is_agent_user, users_count, months)
+    if total_price == 0:
+        await query_or_msg.answer(text="❌ این ترکیب قیمتی موجود نیست!", show_alert=True)
+        return
+    
     user_data[uid]["price"] = total_price
     
-    service_name = "نمایندگی فروش 💎" if is_agent_flow else "تانل عادی 🌐"
+    service_map = {
+        "normal": "تانل عادی 🌐",
+        "vip": "تانل VIP 👑",
+        "agent": "نمایندگی فروش 💎"
+    }
+    service_name = service_map.get(service, "نامشخص")
+    
+    vip_badge = "\n🌟 جوابگویی روی تمامی نت ها" if service == "vip" else ""
     
     text = f"""
 🧾 پیش فاکتور شما:
 
-🔸 نوع سرویس: {service_name}
-🔸 حجم سرویس: {gb} گیگابایت
-"""
-    if is_agent_flow:
-        text += f"🔸 تعداد سرویس: {qty} عدد\n"
-        
-    text += f"""🔸 روش پرداخت: نقدی (کارت به کارت)
+🔸 نوع سرویس: {service_name}{vip_badge}
+🔸 تعداد کاربر: {users_count}
+🔸 مدت اشتراک: {months} ماه
+🔸 روش پرداخت: نقدی (کارت به کارت)
 🔸 کد تخفیف: {data.get("discount", "ندارد")}
     
 💰 قیمت نهایی: {format_price(total_price)}
 
 ✅ در صورت اطمینان، روی تایید و ادامه کلیک کنید."""
 
-    reply_markup = get_invoice_menu(is_agent_flow)
+    reply_markup = get_invoice_menu()
     
     try:
         await query_or_msg.edit_message_text(text, reply_markup=reply_markup)
@@ -628,25 +704,19 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # دریافت دستی کد تخفیف
     if state == "WAIT_BUY_DISCOUNT":
         user_data[uid]["discount"] = text
-        await update.message.reply_text("✅ کد تخفیف اعمال شد.\n\n📦 مقدار گیگ رو انتخاب کنید:", reply_markup=get_gb_menu())
+        await update.message.reply_text("✅ کد تخفیف اعمال شد.\n\n👤 تعداد کاربر رو انتخاب کنید:", reply_markup=get_users_count_menu())
         return
 
-    # دریافت دستی حجم گیگ
-    if state == "WAIT_CUSTOM_BUY_GB":
+    # دریافت دستی تعداد ماه
+    if state == "WAIT_CUSTOM_MONTHS":
         if not text.isdigit(): return await update.message.reply_text("❌ فقط عدد انگلیسی ارسال کن")
-        gb = int(text)
-        user_data[uid]["gb"] = gb
-        if user_data[uid].get("service") == "agent":
-            await update.message.reply_text(f"💎 چه تعداد سرویس {gb} گیگ لازم دارین؟", reply_markup=get_qty_menu(gb))
-        else:
-            user_data[uid]["qty"] = 1
-            await generate_and_send_invoice(update.message, uid)
-        return
-
-    # دریافت دستی تعداد اکانت (مخصوص نماینده)
-    if state == "WAIT_CUSTOM_BUY_QTY":
-        if not text.isdigit(): return await update.message.reply_text("❌ فقط عدد انگلیسی ارسال کن")
-        user_data[uid]["qty"] = int(text)
+        months = int(text)
+        
+        # برای نمایندگان فقط 1 و 2 ماهه قبول کنیم
+        if user_data[uid].get("service") == "agent" and months > 2:
+            return await update.message.reply_text("❌ نمایندگان فقط می‌تونن 1 یا 2 ماهه خریداری کنند")
+        
+        user_data[uid]["months"] = months
         await generate_and_send_invoice(update.message, uid)
         return
 
@@ -654,24 +724,25 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if state == "WAIT_RENEW_LINK":
         user_data[uid] = {"type": "renew", "link": text}
         keyboard = [
-            [InlineKeyboardButton("1GB", callback_data="renew_1"), InlineKeyboardButton("2GB", callback_data="renew_2")],
-            [InlineKeyboardButton("3GB", callback_data="renew_3"), InlineKeyboardButton("4GB", callback_data="renew_4")],
-            [InlineKeyboardButton("5GB", callback_data="renew_5")],
-            [InlineKeyboardButton("📦 حجم دلخواه", callback_data="custom_renew")],
+            [InlineKeyboardButton("1️⃣ یک ماهه", callback_data="renew_1"), InlineKeyboardButton("2️⃣ دو ماهه", callback_data="renew_2")],
+            [InlineKeyboardButton("3️⃣ سه ماهه", callback_data="renew_3")],
+            [InlineKeyboardButton("📦 ماه دلخواه", callback_data="custom_renew")],
             [InlineKeyboardButton("❌ لغو سفارش", callback_data="cancel_all")]
         ]
         user_state[uid] = "WAIT_RENEW_GB"
-        return await update.message.reply_text("📦 حجم تمدید رو انتخاب کن:", reply_markup=InlineKeyboardMarkup(keyboard))
+        return await update.message.reply_text("📦 مدت تمدید رو انتخاب کن:", reply_markup=InlineKeyboardMarkup(keyboard))
 
     if state == "WAIT_CUSTOM_RENEW":
         if not text.isdigit(): return await update.message.reply_text("❌ فقط عدد ارسال کن")
-        gb = int(text)
-        pr = price(gb)
-        user_data[uid]["gb"] = gb
+        months = int(text)
+        pr = get_price("normal", is_agent(uid), 1, months)
+        if pr == 0:
+            return await update.message.reply_text("❌ این تعداد ماه موجود نیست")
+        user_data[uid]["months"] = months
         user_data[uid]["price"] = pr
         user_state[uid] = "WAIT_RENEW_RECEIPT"
         keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="back_renew")], [InlineKeyboardButton("❌ لغو سفارش", callback_data="cancel_all")]]
-        text_msg = f"✅ پلن انتخاب شد\n\n📦 حجم:\n`{gb}GB`\n\n💰 مبلغ:\n`{format_price(pr)}`\n\n💳 شماره کارت:\n`{CARD_NUMBER}`\n\n📸 بعد از پرداخت، رسید رو ارسال کن 😄"
+        text_msg = f"✅ تمدید انتخاب شد\n\n⏱ مدت:\n`{months} ماه`\n\n💰 مبلغ:\n`{format_price(pr)}`\n\n💳 شماره کارت:\n`{CARD_NUMBER}`\n👤 صاحب کارت:\n{CARD_NAME}\n\n📸 بعد از پرداخت، رسید رو ارسال کن 😄"
         return await update.message.reply_text(text_msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
 # =====================================
@@ -692,20 +763,21 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not data: return
 
     order_code = generate_order_code()
-    qty = data.get("qty", 1)
+    users_count = data.get("users_count", 1)
+    months = data.get("months", 1)
 
     cursor.execute("""
-    INSERT INTO orders (order_code, user_id, order_type, gb, qty, price, status, link, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (order_code, uid, data["type"], data["gb"], qty, data["price"], "pending", data.get("link", "-"), datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    INSERT INTO orders (order_code, user_id, order_type, users_count, months, qty, price, status, link, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (order_code, uid, data["type"], users_count, months, 1, data["price"], "pending", data.get("link", "-"), datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     db.commit()
 
-    agent_tag = "💎 (نماینده)" if data.get("service") == "agent" else ""
+    agent_tag = " 💎 (نماینده)" if is_agent(uid) else ""
 
     if data["type"] == "buy":
-        caption = f"🛒 خرید جدید {agent_tag}\n\n🧾 سفارش: {order_code}\n👤 کاربر: {uid}\n📦 حجم: {data['gb']}GB\n🔢 تعداد: {qty} عدد\n💰 مبلغ: {format_price(data['price'])}"
+        caption = f"🛒 خرید جدید{agent_tag}\n\n🧾 سفارش: {order_code}\n👤 کاربر: {uid}\n👥 تعداد کاربر: {users_count}\n⏱ مدت: {months} ماه\n💰 مبلغ: {format_price(data['price'])}"
     else:
-        caption = f"♻️ تمدید جدید\n\n🧾 سفارش: {order_code}\n👤 کاربر: {uid}\n🔗 لینک:\n`{data['link']}`\n📦 حجم: {data['gb']}GB\n🔢 تعداد: 1 عدد\n💰 مبلغ: {format_price(data['price'])}"
+        caption = f"♻️ تمدید جدید\n\n🧾 سفارش: {order_code}\n👤 کاربر: {uid}\n🔗 لینک:\n`{data['link']}`\n⏱ مدت: {months} ماه\n💰 مبلغ: {format_price(data['price'])}"
 
     keyboard = [[InlineKeyboardButton("👤 آنالیز مشتری", callback_data=f"analysis_{uid}")], [InlineKeyboardButton("❌ رد سفارش", callback_data=f"reject_{uid}")]]
 
@@ -730,8 +802,6 @@ async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lines = reply_caption.split("\n")
     uid = None
     order_code = None
-    qty = 1
-    gb = 0
 
     # خواندن اطلاعات از کپشن فیش
     for line in lines:
@@ -739,51 +809,19 @@ async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             uid = int(line.split(":")[1].strip())
         elif "🧾 سفارش:" in line:
             order_code = line.split(":")[1].strip()
-        elif "🔢 تعداد:" in line:
-            qty = int(line.split(":")[1].replace("عدد", "").strip())
-        elif "📦 حجم:" in line:
-            gb = int(line.split(":")[1].replace("GB", "").strip())
 
     if not uid or not order_code: return
 
-    # اگر سفارش تک اکانته بود (خرید عادی یا تمدید)
-    if qty == 1:
-        await context.bot.send_message(
-            chat_id=uid, 
-            text=f"✅ سفارش شما تایید شد 😄\n\n🔗 اکانت شما:\n\n`{update.message.text}`\n\nممنون از خرید شما ❤️", 
-            parse_mode="Markdown"
-        )
-        cursor.execute("UPDATE orders SET status = 'success' WHERE user_id = ? AND status = 'pending'", (uid,))
-        db.commit()
-        return await update.message.reply_text("✅ برای مشتری ارسال شد")
-
-    # سیستم ارسال چند مرحله‌ای (برای تعداد بیشتر از 1)
-    if order_code not in admin_multi_delivery:
-        admin_multi_delivery[order_code] = {"uid": uid, "qty": qty, "gb": gb, "links": []}
-
-    admin_multi_delivery[order_code]["links"].append(update.message.text)
-    current_count = len(admin_multi_delivery[order_code]["links"])
-
-    if current_count < qty:
-        await update.message.reply_text(f"✅ اکانت {current_count} از {qty} دریافت شد.\nلطفا مجدداً روی همون فیش ریپلای کن و اکانت بعدی رو بفرست.")
-    else:
-        # ارسال جداگانه هر اکانت برای کاربر
-        links = admin_multi_delivery[order_code]["links"]
-        for idx, link in enumerate(links):
-            msg_text = f"سرویس {idx + 1} با حجم {gb} گیگ\n\n`{link}`"
-            await context.bot.send_message(chat_id=uid, text=msg_text, parse_mode="Markdown")
-
-        # ارسال پیام نهایی تکمیل سفارش
-        await context.bot.send_message(chat_id=uid, text="✅ تمام اکانت‌های سفارش شما ارسال شد. ممنون از خرید شما ❤️")
-
-        # بروزرسانی دیتابیس
-        cursor.execute("UPDATE orders SET status = 'success' WHERE user_id = ? AND status = 'pending'", (uid,))
-        db.commit()
-
-        await update.message.reply_text(f"✅ هر {qty} اکانت به صورت جداگانه برای نماینده ارسال شد و سفارش تکمیل گردید.")
-        
-        # پاک کردن حافظه موقت سفارش تکمیل شده
-        del admin_multi_delivery[order_code]
+    # ارسال اکانت برای کاربر
+    await context.bot.send_message(
+        chat_id=uid, 
+        text=f"✅ سفارش شما تایید شد 😄\n\n🔗 اکانت شما:\n\n`{update.message.text}`\n\nممنون از خرید شما ❤️", 
+        parse_mode="Markdown"
+    )
+    cursor.execute("UPDATE orders SET status = 'success' WHERE order_code = ?", (order_code,))
+    db.commit()
+    
+    await update.message.reply_text("✅ اکانت برای مشتری ارسال شد")
 
 # =====================================
 # اجرا
