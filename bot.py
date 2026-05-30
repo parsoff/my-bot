@@ -119,44 +119,143 @@ def is_agent(uid):
     return True if result and result[0] == 1 else False
 
 # =====================================
-# قیمت گذاری جدید (نامحدود)
+# سیستم قیمت‌گذاری جدید
 # =====================================
 
-# تانل عادی
-NORMAL_PRICES = {
-    (1, 1): 360000,  # 1 کاربر، 1 ماه
-    (1, 2): 580000,  # 1 کاربر، 2 ماه
-    (1, 3): 810000,  # 1 کاربر، 3 ماه
-    (2, 1): 590000,  # 2 کاربر، 1 ماه
-    (2, 2): 1100000, # 2 کاربر، 2 ماه
-    (2, 3): 1500000, # 2 کاربر، 3 ماه
-}
-
-# تانل VIP
-VIP_PRICES = {
-    (1, 1): 460000,  # 1 کاربر، 1 ماه
-    (1, 2): 790000,  # 1 کاربر، 2 ماه
-    (2, 1): 790000,  # 2 کاربر، 1 ماه
-    (2, 2): 1410000, # 2 کاربر، 2 ماه
-}
-
-# نمایندگی - تانل عادی
-AGENT_NORMAL_PRICES = {
-    (1, 1): 285000,  # 1 کاربر، 1 ماه
-    (1, 2): 515000,  # 1 کاربر، 2 ماه
-    (1, 3): 735000,  # 1 کاربر، 3 ماه
-    (2, 1): 515000,  # 2 کاربر، 1 ماه
-    (2, 2): 935000,  # 2 کاربر، 2 ماه
-    (2, 3): 1425000, # 2 کاربر، 3 ماه
-}
-
-# نمایندگی - تانل VIP
-AGENT_VIP_PRICES = {
-    (1, 1): 385000,  # 1 کاربر، 1 ماه
-    (1, 2): 715000,  # 1 کاربر، 2 ماه
-    (2, 1): 715000,  # 2 کاربر، 1 ماه
-    (2, 2): 1335000, # 2 کاربر، 2 ماه
-}
+def calculate_price(service_type, is_agent_user, users_count, months):
+    """
+    محاسبه قیمت بر اساس:
+    - service_type: "normal" یا "vip"
+    - is_agent_user: True/False
+    - users_count: تعداد کاربر (هر عددی)
+    - months: تعداد ماه (هر عددی)
+    
+    قیمت برای تانل عادی (بدون نمایندگی):
+    - 1 کاربر: 360,000 (1ماه), 580,000 (2ماه), 810,000 (3ماه)
+    - 2 کاربر: 590,000 (1ماه), 1,100,000 (2ماه), 1,500,000 (3ماه)
+    
+    قیمت برای تانل VIP (بدون نمایندگی):
+    - 1 کاربر: 460,000 (1ماه), 790,000 (2ماه)
+    - 2 کاربر: 790,000 (1ماه), 1,410,000 (2ماه)
+    
+    قیمت برای تانل عادی (نمایندگی):
+    - 1 کاربر: 285,000 (1ماه), 515,000 (2ماه), 735,000 (3ماه)
+    - 2 کاربر: 515,000 (1ماه), 935,000 (2ماه), 1,425,000 (3ماه)
+    
+    قیمت برای تانل VIP (نمایندگی):
+    - 1 کاربر: 385,000 (1ماه), 715,000 (2ماه)
+    - 2 کاربر: 715,000 (1ماه), 1,335,000 (2ماه)
+    """
+    
+    # برای نمایندگان - فقط 1 و 2 ماهه
+    if is_agent_user and months > 2:
+        return 0
+    
+    # تانل عادی (بدون نمایندگی)
+    if service_type == "normal" and not is_agent_user:
+        if users_count == 1:
+            if months == 1: return 360000
+            elif months == 2: return 580000
+            elif months == 3: return 810000
+            # محاسبه دلخواه برای 1 کاربر عادی
+            # قیمت پایه: 360,000 برای 1 ماه
+            else:
+                base_per_month = 360000
+                return base_per_month * months
+        elif users_count == 2:
+            if months == 1: return 590000
+            elif months == 2: return 1100000
+            elif months == 3: return 1500000
+            # محاسبه دلخواه برای 2 کاربر عادی
+            # قیمت پایه: 590,000 برای 1 ماه
+            else:
+                base_per_month = 590000
+                return base_per_month * months
+        else:
+            # برای تعداد کاربر دلخواه (بیش از 2)
+            # قیمت برای کاربر اول: 360,000 برای 1 ماه
+            # قیمت برای هر کاربر اضافی: 230,000 برای 1 ماه (590,000 - 360,000 = 230,000)
+            price_first_user = 360000
+            price_additional_user = 230000
+            base_per_month = price_first_user + (price_additional_user * (users_count - 1))
+            return base_per_month * months
+    
+    # تانل VIP (بدون نمایندگی)
+    elif service_type == "vip" and not is_agent_user:
+        if users_count == 1:
+            if months == 1: return 460000
+            elif months == 2: return 790000
+            # محاسبه دلخواه برای 1 کاربر VIP
+            else:
+                base_per_month = 460000
+                return base_per_month * months
+        elif users_count == 2:
+            if months == 1: return 790000
+            elif months == 2: return 1410000
+            # محاسبه دلخواه برای 2 کاربر VIP
+            else:
+                base_per_month = 790000
+                return base_per_month * months
+        else:
+            # برای تعداد کاربر دلخواه (بیش از 2)
+            # قیمت برای کاربر اول: 460,000 برای 1 ماه
+            # قیمت برای هر کاربر اضافی: 330,000 برای 1 ماه (790,000 - 460,000 = 330,000)
+            price_first_user = 460000
+            price_additional_user = 330000
+            base_per_month = price_first_user + (price_additional_user * (users_count - 1))
+            return base_per_month * months
+    
+    # تانل عادی (نمایندگی)
+    elif service_type == "normal" and is_agent_user:
+        if users_count == 1:
+            if months == 1: return 285000
+            elif months == 2: return 515000
+            # محاسبه دلخواه برای 1 کاربر عادی (نمایندگی)
+            else:
+                base_per_month = 285000
+                return base_per_month * months
+        elif users_count == 2:
+            if months == 1: return 515000
+            elif months == 2: return 935000
+            # محاسبه دلخواه برای 2 کاربر عادی (نمایندگی)
+            else:
+                base_per_month = 515000
+                return base_per_month * months
+        else:
+            # برای تعداد کاربر دلخواه (بیش از 2)
+            # قیمت برای کاربر اول: 285,000 برای 1 ماه
+            # قیمت برای هر کاربر اضافی: 230,000 برای 1 ماه (515,000 - 285,000 = 230,000)
+            price_first_user = 285000
+            price_additional_user = 230000
+            base_per_month = price_first_user + (price_additional_user * (users_count - 1))
+            return base_per_month * months
+    
+    # تانل VIP (نمایندگی)
+    elif service_type == "vip" and is_agent_user:
+        if users_count == 1:
+            if months == 1: return 385000
+            elif months == 2: return 715000
+            # محاسبه دلخواه برای 1 کاربر VIP (نمایندگی)
+            else:
+                base_per_month = 385000
+                return base_per_month * months
+        elif users_count == 2:
+            if months == 1: return 715000
+            elif months == 2: return 1335000
+            # محاسبه دلخواه برای 2 کاربر VIP (نمایندگی)
+            else:
+                base_per_month = 715000
+                return base_per_month * months
+        else:
+            # برای تعداد کاربر دلخواه (بیش از 2)
+            # قیمت برای کاربر اول: 385,000 برای 1 ماه
+            # قیمت برای هر کاربر اضافی: 330,000 برای 1 ماه (715,000 - 385,000 = 330,000)
+            price_first_user = 385000
+            price_additional_user = 330000
+            base_per_month = price_first_user + (price_additional_user * (users_count - 1))
+            return base_per_month * months
+    
+    return 0
 
 # =====================================
 # حافظه موقت
@@ -212,27 +311,6 @@ def format_price(amount):
         return f"{thousand} هزار و {remain} تومان"
 
     return f"{amount} تومان"
-
-def get_price(service_type, is_agent_user, users_count, months):
-    """
-    محاسبه قیمت بر اساس نوع سرویس، تعداد کاربر و مدت اشتراک
-    service_type: "normal" یا "vip"
-    is_agent_user: True یا False
-    users_count: 1 یا 2
-    months: 1، 2 یا 3
-    """
-    key = (users_count, months)
-    
-    if is_agent_user:
-        if service_type == "normal":
-            return AGENT_NORMAL_PRICES.get(key, 0)
-        else:  # vip
-            return AGENT_VIP_PRICES.get(key, 0)
-    else:
-        if service_type == "normal":
-            return NORMAL_PRICES.get(key, 0)
-        else:  # vip
-            return VIP_PRICES.get(key, 0)
 
 def generate_order_code():
     now = datetime.now().strftime("%Y%m%d")
@@ -325,6 +403,7 @@ def get_users_count_menu():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("1️⃣ یک کاربر", callback_data="buy_users_1")],
         [InlineKeyboardButton("2️⃣ دو کاربر", callback_data="buy_users_2")],
+        [InlineKeyboardButton("📦 تعداد دلخواه", callback_data="buy_custom_users")],
         [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_disc")],
         [InlineKeyboardButton("❌ انصراف", callback_data="cancel_buy")]
     ])
@@ -475,6 +554,11 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("👤 تعداد کاربر رو انتخاب کنید:", reply_markup=get_users_count_menu())
         return
 
+    if data == "buy_custom_users":
+        user_state[uid] = "WAIT_CUSTOM_USERS"
+        await query.edit_message_text("📦 تعداد کاربر دلخواه رو بفرستید:\n\nمثال: 5")
+        return
+
     if data.startswith("buy_users_"):
         users_count = int(data.split("_")[2])
         user_data[uid]["users_count"] = users_count
@@ -490,7 +574,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 6. مدت اشتراک
     if data == "back_to_months":
-        users_count = user_data[uid].get("users_count", 1)
+        # بازگشت به مرحله انتخاب تعداد کاربر
         await query.edit_message_text("👤 تعداد کاربر رو انتخاب کنید:", reply_markup=get_users_count_menu())
         return
 
@@ -551,7 +635,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("renew_"):
         months = int(data.split("_")[1])
         # برای تمدید از قیمت تک کاربر استفاده می‌کنیم (پیش‌فرض)
-        pr = get_price("normal", is_agent(uid), 1, months)
+        pr = calculate_price("normal", is_agent(uid), 1, months)
         if uid not in user_data: user_data[uid] = {}
         user_data[uid]["type"] = "renew"
         user_data[uid]["months"] = months
@@ -601,7 +685,7 @@ async def generate_and_send_invoice(query_or_msg, uid):
     is_agent_user = is_agent(uid)
     
     # محاسبه قیمت
-    total_price = get_price(service, is_agent_user, users_count, months)
+    total_price = calculate_price(service, is_agent_user, users_count, months)
     if total_price == 0:
         await query_or_msg.answer(text="❌ این ترکیب قیمتی موجود نیست!", show_alert=True)
         return
@@ -707,10 +791,28 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ کد تخفیف اعمال شد.\n\n👤 تعداد کاربر رو انتخاب کنید:", reply_markup=get_users_count_menu())
         return
 
+    # دریافت دستی تعداد کاربر
+    if state == "WAIT_CUSTOM_USERS":
+        if not text.isdigit(): return await update.message.reply_text("❌ فقط عدد انگلیسی ارسال کن")
+        users_count = int(text)
+        if users_count < 1: return await update.message.reply_text("❌ تعداد کاربر باید حداقل 1 باشد")
+        
+        user_data[uid]["users_count"] = users_count
+        
+        # برای نمایندگان فقط 1 و 2 ماهه
+        if user_data[uid].get("service") == "agent":
+            menu = get_agent_months_menu()
+        else:
+            menu = get_months_menu()
+        
+        await update.message.reply_text(f"⏱ مدت اشتراک رو انتخاب کنید:", reply_markup=menu)
+        return
+
     # دریافت دستی تعداد ماه
     if state == "WAIT_CUSTOM_MONTHS":
         if not text.isdigit(): return await update.message.reply_text("❌ فقط عدد انگلیسی ارسال کن")
         months = int(text)
+        if months < 1: return await update.message.reply_text("❌ تعداد ماه باید حداقل 1 باشد")
         
         # برای نمایندگان فقط 1 و 2 ماهه قبول کنیم
         if user_data[uid].get("service") == "agent" and months > 2:
@@ -735,7 +837,9 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if state == "WAIT_CUSTOM_RENEW":
         if not text.isdigit(): return await update.message.reply_text("❌ فقط عدد ارسال کن")
         months = int(text)
-        pr = get_price("normal", is_agent(uid), 1, months)
+        if months < 1: return await update.message.reply_text("❌ تعداد ماه باید حداقل 1 باشد")
+        
+        pr = calculate_price("normal", is_agent(uid), 1, months)
         if pr == 0:
             return await update.message.reply_text("❌ این تعداد ماه موجود نیست")
         user_data[uid]["months"] = months
