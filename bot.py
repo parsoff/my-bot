@@ -131,7 +131,7 @@ def is_agent(uid):
 def calculate_price(service_type, is_agent_user, users_count, months):
     """
     محاسبه قیمت بر اساس:
-    - service_type: "normal" یا "vip" یا "agent"
+    - service_type: "normal" یا "vip" یا "agent" یا "agent_vip"
     - is_agent_user: True/False
     - users_count: تعداد کاربر (هر عددی)
     - months: تعداد ماه (هر عددی)
@@ -144,12 +144,36 @@ def calculate_price(service_type, is_agent_user, users_count, months):
     - 1 کاربر: 460,000 (1ماه), 790,000 (2ماه)
     - 2 کاربر: 790,000 (1ماه), 1,410,000 (2ماه)
     
-    قیمت برای نمایندگی:
+    قیمت برای نمایندگی عادی:
     - 1 کاربر: 285,000 (1ماه), 515,000 (2ماه), 735,000 (3ماه)
     - 2 کاربر: 515,000 (1ماه), 935,000 (2ماه), 1,425,000 (3ماه)
+    
+    قیمت برای نمایندگی VIP (50,000 کمتر از VIP عادی):
+    - 1 کاربر: 410,000 (1ماه), 740,000 (2ماه)
+    - 2 کاربر: 740,000 (1ماه), 1,360,000 (2ماه)
     """
     
-    # نمایندگی فروش
+    # نمایندگی VIP
+    if service_type == "agent_vip":
+        if users_count == 1:
+            if months == 1: return 410000
+            elif months == 2: return 740000
+            else:
+                base_per_month = 410000
+                return base_per_month * months
+        elif users_count == 2:
+            if months == 1: return 740000
+            elif months == 2: return 1360000
+            else:
+                base_per_month = 740000
+                return base_per_month * months
+        else:
+            price_first_user = 410000
+            price_additional_user = 330000
+            base_per_month = price_first_user + (price_additional_user * (users_count - 1))
+            return base_per_month * months
+    
+    # نمایندگی عادی
     if service_type == "agent":
         if users_count == 1:
             if months == 1: return 285000
@@ -420,6 +444,7 @@ def get_operator_menu():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("☎️ همراه اول", callback_data="buy_operator_mci")],
         [InlineKeyboardButton("📱 ایرانسل", callback_data="buy_operator_mtn")],
+        [InlineKeyboardButton("⭐ VIP", callback_data="buy_operator_vip")],
         [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_months")],
         [InlineKeyboardButton("❌ انصراف", callback_data="cancel_buy")]
     ])
@@ -599,6 +624,12 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await generate_and_send_invoice(query, uid)
         return
 
+    if data == "buy_operator_vip":
+        user_data[uid]["operator"] = "⭐ VIP"
+        user_data[uid]["service"] = "agent_vip"
+        await generate_and_send_invoice(query, uid)
+        return
+
     # 8. فاکتور و تایید
     if data == "buy_confirm":
         user_state[uid] = "WAIT_BUY_RECEIPT"
@@ -649,7 +680,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_state[uid] = "WAIT_RENEW_RECEIPT"
         
         keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="back_renew")], [InlineKeyboardButton("❌ لغو سفارش", callback_data="cancel_all")]]
-        text = f"✅ تمدید انتخاب شد\n\n⏱ مدت:\n`{months} ماه`\n\n💰 مبلغ:\n`{format_price(pr)}`\n\n💳 شماره کارت:\n`{CARD_NUMBER}`\n👤 صاحب کارت:\n{CARD_NAME}\n\n📸 بعد از پرداخت، تصویر رسید (فیش) رو همینجا ارسال کن"
+        text = f"✅ تمدید انتخاب شد\n\n⏱ مدت:\n`{months} ماه`\n\n💰 ��بلغ:\n`{format_price(pr)}`\n\n💳 شماره کارت:\n`{CARD_NUMBER}`\n👤 صاحب کارت:\n{CARD_NAME}\n\n📸 بعد از پرداخت، تصویر رسید (فیش) رو همینجا ارسال کن"
         await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
@@ -703,17 +734,19 @@ async def generate_and_send_invoice(query_or_msg, uid):
     service_map = {
         "normal": "تانل عادی 🌐",
         "vip": "تانل VIP 👑",
-        "agent": "نمایندگی فروش 💎"
+        "agent": "نمایندگی فروش 💎",
+        "agent_vip": "نمایندگی VIP ⭐"
     }
     service_name = service_map.get(service, "نامشخص")
     
     vip_badge = "\n🌟 جوابگویی روی تمامی نت ها" if service == "vip" else ""
+    vip_badge_agent = "\n🌟 جوابگویی روی تمامی نت ها" if service == "agent_vip" else ""
     operator_line = f"\n📱 اپراتور: {operator}" if operator else ""
     
     text = f"""
 🧾 پیش فاکتور شما:
 
-🔸 نوع سرویس: {service_name}{vip_badge}
+🔸 نوع سرویس: {service_name}{vip_badge}{vip_badge_agent}
 🔸 تعداد کاربر: {users_count}
 🔸 مدت اشتراک: {months} ماه{operator_line}
 🔸 روش پرداخت: نقدی (کارت به کارت)
@@ -874,6 +907,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users_count = data.get("users_count", 1)
     months = data.get("months", 1)
     operator = data.get("operator", "")
+    service = data.get("service", "")
 
     cursor.execute("""
     INSERT INTO orders (order_code, user_id, order_type, users_count, months, operator, qty, price, status, link, created_at)
@@ -885,7 +919,12 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data["type"] == "buy":
         operator_info = f"\n📱 اپراتور: {operator}" if operator else ""
-        caption = f"🛒 خرید جدید{agent_tag}\n\n🧾 سفارش: {order_code}\n👤 کاربر: {uid}\n👥 تعداد کاربر: {users_count}\n⏱ مدت: {months} ماه{operator_info}\n💰 مبلغ: {format_price(data['price'])}"
+        service_info = ""
+        if service == "agent_vip":
+            service_info = "\n✨ نوع: نمایندگی VIP ⭐"
+        elif service == "agent":
+            service_info = "\n✨ نوع: نمایندگی عادی 💎"
+        caption = f"🛒 خرید جدید{agent_tag}\n\n🧾 سفارش: {order_code}\n👤 کاربر: {uid}\n👥 تعداد کاربر: {users_count}\n⏱ مدت: {months} ماه{operator_info}{service_info}\n💰 مبلغ: {format_price(data['price'])}"
     else:
         caption = f"♻️ تمدید جدید\n\n🧾 سفارش: {order_code}\n👤 کاربر: {uid}\n🔗 لینک:\n`{data['link']}`\n⏱ مدت: {months} ماه\n💰 مبلغ: {format_price(data['price'])}"
 
