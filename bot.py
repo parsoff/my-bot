@@ -131,7 +131,7 @@ def is_agent(uid):
 def calculate_price(service_type, is_agent_user, users_count, months):
     """
     محاسبه قیمت بر اساس:
-    - service_type: "normal" یا "vip"
+    - service_type: "normal" یا "vip" یا "agent"
     - is_agent_user: True/False
     - users_count: تعداد کاربر (هر عددی)
     - months: تعداد ماه (هر عددی)
@@ -144,14 +144,32 @@ def calculate_price(service_type, is_agent_user, users_count, months):
     - 1 کاربر: 460,000 (1ماه), 790,000 (2ماه)
     - 2 کاربر: 790,000 (1ماه), 1,410,000 (2ماه)
     
-    قیمت برای تانل عادی (نمایندگی):
+    قیمت برای نمایندگی:
     - 1 کاربر: 285,000 (1ماه), 515,000 (2ماه), 735,000 (3ماه)
     - 2 کاربر: 515,000 (1ماه), 935,000 (2ماه), 1,425,000 (3ماه)
-    
-    قیمت برای تانل VIP (نمایندگی):
-    - 1 کاربر: 385,000 (1ماه), 715,000 (2ماه)
-    - 2 کاربر: 715,000 (1ماه), 1,335,000 (2ماه)
     """
+    
+    # نمایندگی فروش
+    if service_type == "agent":
+        if users_count == 1:
+            if months == 1: return 285000
+            elif months == 2: return 515000
+            elif months == 3: return 735000
+            else:
+                base_per_month = 285000
+                return base_per_month * months
+        elif users_count == 2:
+            if months == 1: return 515000
+            elif months == 2: return 935000
+            elif months == 3: return 1425000
+            else:
+                base_per_month = 515000
+                return base_per_month * months
+        else:
+            price_first_user = 285000
+            price_additional_user = 230000
+            base_per_month = price_first_user + (price_additional_user * (users_count - 1))
+            return base_per_month * months
     
     # تانل عادی (بدون نمایندگی)
     if service_type == "normal" and not is_agent_user:
@@ -341,7 +359,7 @@ def renew_stats():
 def users_without_orders():
     cursor.execute("SELECT user_id FROM users WHERE user_id NOT IN (SELECT DISTINCT user_id FROM orders)")
     users = cursor.fetchall()
-    if not users: return "✅ هم�� کاربران خرید یا تمدید داشتن"
+    if not users: return "✅ همه کاربران خرید یا تمدید داشتن"
     text = "👤 کاربران بدون خرید:\n\n"
     for user in users: text += f"{user[0]}\n"
     return text
@@ -670,12 +688,14 @@ async def generate_and_send_invoice(query_or_msg, uid):
     months = data.get("months", 1)
     service = data.get("service", "normal")
     operator = data.get("operator", "")
-    is_agent_user = is_agent(uid)
     
     # محاسبه قیمت
-    total_price = calculate_price(service, is_agent_user, users_count, months)
+    total_price = calculate_price(service, False, users_count, months)
     if total_price == 0:
-        await query_or_msg.answer(text="❌ این ترکیب قیمتی موجود نیست!", show_alert=True)
+        try:
+            await query_or_msg.answer(text="❌ این ترکیب قیمتی موجود نیست!", show_alert=True)
+        except:
+            await query_or_msg.reply_text("❌ این ترکیب قیمتی موجود نیست!")
         return
     
     user_data[uid]["price"] = total_price
