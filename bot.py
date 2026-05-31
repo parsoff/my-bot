@@ -341,7 +341,7 @@ def renew_stats():
 def users_without_orders():
     cursor.execute("SELECT user_id FROM users WHERE user_id NOT IN (SELECT DISTINCT user_id FROM orders)")
     users = cursor.fetchall()
-    if not users: return "✅ همه کاربران خرید یا تمدید داشتن"
+    if not users: return "✅ هم�� کاربران خرید یا تمدید داشتن"
     text = "👤 کاربران بدون خرید:\n\n"
     for user in users: text += f"{user[0]}\n"
     return text
@@ -514,13 +514,13 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "buy_paym_card":
         user_state[uid] = "WAIT_BUY_DISCOUNT"
-        await query.edit_message_text("💳 روش پرداخت: کارت به کارت\n\nاگر کد تخفیف دارید آن را بفرستید، در غیر این صورت روی 'بدون کد تخفیف' بزنید:", reply_markup=get_discount_menu())
+        await query.edit_message_text("💳 روش پرداخت: کارت به کارت\n\nاگر کد تخفیف دارید آن را بفرستید، در غیر این صورت روی 'بدون کد تخفیف' کلیک کنید:", reply_markup=get_discount_menu())
         return
 
     # 4. کد تخفیف
     if data == "back_to_disc":
         user_state[uid] = "WAIT_BUY_DISCOUNT"
-        await query.edit_message_text("💳 روش پرداخت: کارت به کارت\n\nاگر کد تخفیف دارید آن را بفرستید، در غیر این صورت روی 'بدون کد تخفیف' بزنید:", reply_markup=get_discount_menu())
+        await query.edit_message_text("💳 روش پرداخت: کارت به کارت\n\nاگر کد تخفیف دارید آن را بفرستید، در غیر این صورت روی 'بدون کد تخفیف' کلیک کنید:", reply_markup=get_discount_menu())
         return
 
     if data == "buy_disc_no":
@@ -558,15 +558,15 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         months = int(data.split("_")[2])
         user_data[uid]["months"] = months
         
-        # اگر تانل عادی بود، به مرحله انتخاب اپراتور برویم
-        if user_data[uid].get("service") == "normal":
+        # برای تانل عادی یا نمایندگی، به مرحله انتخاب اپراتور برویم
+        if user_data[uid].get("service") in ["normal", "agent"]:
             await query.edit_message_text("📱 اپراتور را انتخاب کنید:", reply_markup=get_operator_menu())
         else:
-            # برای VIP و نمایندگی، مستقیم به فاکتور برویم
+            # برای VIP، مستقیم به فاکتور برویم
             await generate_and_send_invoice(query, uid)
         return
 
-    # 7. انتخاب اپراتور (فقط برای تانل عادی)
+    # 7. انتخاب اپراتور (برای تانل عادی و نمایندگی)
     if data == "back_to_operator":
         await query.edit_message_text("📱 اپراتور را انتخاب کنید:", reply_markup=get_operator_menu())
         return
@@ -631,7 +631,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_state[uid] = "WAIT_RENEW_RECEIPT"
         
         keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="back_renew")], [InlineKeyboardButton("❌ لغو سفارش", callback_data="cancel_all")]]
-        text = f"✅ تمدید انتخاب شد\n\n⏱ مدت:\n`{months} ماه`\n\n💰 مبلغ:\n`{format_price(pr)}`\n\n💳 شماره کارت:\n`{CARD_NUMBER}`\n👤 صاحب کارت:\n{CARD_NAME}\n\n📸 بعد از پرداخت، رسید رو ارسال کن 😄"
+        text = f"✅ تمدید انتخاب شد\n\n⏱ مدت:\n`{months} ماه`\n\n💰 مبلغ:\n`{format_price(pr)}`\n\n💳 شماره کارت:\n`{CARD_NUMBER}`\n👤 صاحب کارت:\n{CARD_NAME}\n\n📸 بعد از پرداخت، تصویر رسید (فیش) رو همینجا ارسال کن"
         await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
@@ -798,11 +798,11 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         user_data[uid]["months"] = months
         
-        # اگر تانل عادی بود، به مرحله انتخاب اپراتور برویم
-        if user_data[uid].get("service") == "normal":
+        # برای تانل عادی یا نمایندگی، به مرحله انتخاب اپراتور برویم
+        if user_data[uid].get("service") in ["normal", "agent"]:
             await update.message.reply_text(f"📱 اپراتور را انتخاب کنید:", reply_markup=get_operator_menu())
         else:
-            # برای VIP و نمایندگی، مستقیم به فاکتور برویم
+            # برای VIP، مستقیم به فاکتور برویم
             await generate_and_send_invoice(update.message, uid)
         return
 
@@ -830,7 +830,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data[uid]["price"] = pr
         user_state[uid] = "WAIT_RENEW_RECEIPT"
         keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="back_renew")], [InlineKeyboardButton("❌ لغو سفارش", callback_data="cancel_all")]]
-        text_msg = f"✅ تمدید انتخاب شد\n\n⏱ مدت:\n`{months} ماه`\n\n💰 مبلغ:\n`{format_price(pr)}`\n\n💳 شماره کارت:\n`{CARD_NUMBER}`\n👤 صاحب کارت:\n{CARD_NAME}\n\n📸 بعد از پرداخت، رسید رو ارسال کن 😄"
+        text_msg = f"✅ تمدید انتخاب شد\n\n⏱ مدت:\n`{months} ماه`\n\n💰 مبلغ:\n`{format_price(pr)}`\n\n💳 شماره کارت:\n`{CARD_NUMBER}`\n👤 صاحب کارت:\n{CARD_NAME}\n\n📸 بعد از پرداخت، تصویر رسید (فیش) رو همینجا ارسال کن"
         return await update.message.reply_text(text_msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
 # =====================================
